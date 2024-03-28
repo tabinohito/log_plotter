@@ -53,7 +53,6 @@ class LogPlotter(object):
                                start_idx = self.start_idx, data_length = self.data_length)
         log_parser.readData()
 
-        print
         self.plot_dict = log_parser.plot_dict
         self.layout_dict = log_parser.layout_dict
         self._topic_list = log_parser._topic_list

@@ -9,6 +9,7 @@ from log_plotter.graph_legend import expand_str_to_list
 import zipfile
 import tarfile
 import os.path
+import sys
 
 class LogParser(object):
 
@@ -43,8 +44,10 @@ class LogParser(object):
         self.start_idx = start_idx
         self.data_length = data_length
 
+        self.log_type = "hrp-sys"
         self.zip_file = None
         self.tar_file = None
+        self.bin_file = None
         try:
             if zipfile.is_zipfile(fname):
                 ##self.zip_file = zipfile.ZipFile(fname)
@@ -61,6 +64,12 @@ class LogParser(object):
                 tarfile.ExFileObject.__enter__ = lambda self_: self_
                 tarfile.ExFileObject.__exit__ = lambda self_, a, b, c: None
                 print('Open tar file: %s %s'%(self.tar_file, self.fname))
+            elif os.path.splitext(fname)[1] == '.bin':
+                self.log_type = "mc_rtc"
+                self.bin_file = fname
+                self.fname = os.path.splitext(os.path.basename(fname))[0]
+                print('Open bin file: %s %s'%(self.bin_file, self.fname))
+
         except Exception as e:
             ## is_tarfile throw error
             pass
@@ -73,7 +82,7 @@ class LogParser(object):
         #                                         ...,
         #                                         [t_n, x_n, y_n, ...]])
         '''
-        # get list fo used topic
+        # get list for used topic from yaml files
         all_legends = reduce(lambda x, y: x + y, [self.layout_dict[title]['legends'] for title in self.layout_dict])
         used_keys = list(set([legend['key'] for legend in all_legends]))
         log_col_pairs = reduce(lambda x, y: x + y, [self.plot_dict[key]['data'] for key in used_keys])
@@ -81,24 +90,49 @@ class LogParser(object):
         self._used_keys = used_keys
         self._topic_list = topic_list
 
-        # store data in parallel
-        fname_list = replaceRHString([self.fname + '.' + ext for ext in topic_list])
-        read_func = readOneTopic
-        if not self.zip_file is None:
-            fname_list = map(lambda fn: [fn, self.start_idx, self.data_length, self.zip_file], fname_list) ## add start_idx, data_length
-            read_func = readOneTopicZip
-        elif not self.tar_file is None:
-            fname_list = map(lambda fn: [fn, self.start_idx, self.data_length, self.tar_file], fname_list) ## add start_idx, data_length
-            read_func = readOneTopicTar
-        else:
-            fname_list = map(lambda fn: [fn, self.start_idx, self.data_length], fname_list) ## add start_idx, data_length
-        pl = multiprocessing.Pool()
-        data_list = pl.map(read_func, fname_list)
-        for topic, data in zip(topic_list, data_list):
-            if data is not None and len(data) <= 0:
-                raise Exception('Time is out of bounds. Please check the --start and --length options.')
+        #hrp-sys log
+        if self.log_type == "hrp-sys":
+            # store data in parallel
+            fname_list = replaceRHString([self.fname + '.' + ext for ext in topic_list])
+            read_func = readOneTopic
+
+            if not self.zip_file is None:
+                fname_list = map(lambda fn: [fn, self.start_idx, self.data_length, self.zip_file], fname_list) ## add start_idx, data_length
+                read_func = readOneTopicZip
+            elif not self.tar_file is None:
+                fname_list = map(lambda fn: [fn, self.start_idx, self.data_length, self.tar_file], fname_list) ## add start_idx, data_length
+                read_func = readOneTopicTar
             else:
-                self.dataListDict[topic] = data
+                fname_list = map(lambda fn: [fn, self.start_idx, self.data_length], fname_list) ## add start_idx, data_length
+            pl = multiprocessing.Pool()
+            data_list = pl.map(read_func, fname_list)
+            for topic, data in zip(topic_list, data_list):
+                if data is not None and len(data) <= 0:
+                    raise Exception('Time is out of bounds. Please check the --start and --length options.')
+                else:
+                    self.dataListDict[topic] = data
+
+            print("Data read finished")
+            print(self.dataListDict[topic_list[0]][:10])
+
+        #mc_rtc log
+        elif self.log_type == "mc_rtc":
+            print('Reading binary file: %s'%self.bin_file)
+            import mc_log_ui
+            mc_rtc_log = mc_log_ui.read_log(self.bin_file)
+            start = self.start_idx
+            length = self.data_length
+            endidx = start + length
+
+            for topic in topic_list:
+                mc_rtc_keys = [key for key in mc_rtc_log.keys() if topic in key]
+                data_list = []
+                for i in range(start, endidx):
+                    data = [mc_rtc_log["t"][i]]
+                    for key in mc_rtc_keys:
+                        data.append(mc_rtc_log[key][i])
+                    data_list.append(data)
+                self.dataListDict[topic] = numpy.array(data_list)
                 
         # set the fastest time as 0
         min_time = min([data[0][0] for data in self.dataListDict.values() if data is not None])

@@ -112,12 +112,8 @@ class LogParser(object):
                 else:
                     self.dataListDict[topic] = data
 
-            print("Data read finished")
-            print(self.dataListDict[topic_list[0]][:10])
-
         #mc_rtc log
         elif self.log_type == "mc_rtc":
-            print('Reading binary file: %s'%self.bin_file)
             import mc_log_ui
             mc_rtc_log = mc_log_ui.read_log(self.bin_file)
             start = self.start_idx

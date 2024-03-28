@@ -52,6 +52,8 @@ class LogPlotter(object):
         log_parser = LogParser(self.fname, self.plot_conf_name, self.layout_conf_name,
                                start_idx = self.start_idx, data_length = self.data_length)
         log_parser.readData()
+
+        print
         self.plot_dict = log_parser.plot_dict
         self.layout_dict = log_parser.layout_dict
         self._topic_list = log_parser._topic_list
@@ -395,7 +397,7 @@ class LogPlotter(object):
 
 def main():
     # args
-    parser = argparse.ArgumentParser(description='plot data from hrpsys log')
+    parser = argparse.ArgumentParser(description='plot data from hrpsys log and mc_rtc log.')
     parser.add_argument('-f', type=str, help='input file', metavar='file', required=True)
     parser.add_argument('--plot', type=str, help='plot configure file', metavar='file')
     parser.add_argument('--layout', type=str, help='layout configure file', metavar='file')
@@ -403,13 +405,18 @@ def main():
     parser.add_argument("-i", action='store_true', help='interactive (start IPython)')
     parser.add_argument('--start', type=int, default = 0, help='row index to start reading')
     parser.add_argument('--length', type=int, default = 0, help='maximum length for reading data')
+
     parser.set_defaults(feature=False)
     args = parser.parse_args()
+
     # main
     app = pyqtgraph.Qt.QtGui.QApplication([])
     if args.plot is None or args.layout is None: # check args
         get_yamls_path = yaml_selector.MainDialog()
         args.plot, args.layout = get_yamls_path()
+    
+    print(args.plot)
+
     a = LogPlotter(args.f, args.plot, args.layout, args.t, start_idx=args.start, data_length=args.length)
     a.main()
 

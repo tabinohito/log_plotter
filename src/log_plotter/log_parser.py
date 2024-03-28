@@ -95,7 +95,11 @@ class LogParser(object):
         pl = multiprocessing.Pool()
         data_list = pl.map(read_func, fname_list)
         for topic, data in zip(topic_list, data_list):
-            self.dataListDict[topic] = data
+            if data is not None and len(data) <= 0:
+                raise Exception('Time is out of bounds. Please check the --start and --length options.')
+            else:
+                self.dataListDict[topic] = data
+                
         # set the fastest time as 0
         min_time = min([data[0][0] for data in self.dataListDict.values() if data is not None])
         for log_name, data in self.dataListDict.items():
